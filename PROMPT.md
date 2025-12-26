@@ -12,8 +12,8 @@ This flake provides a reproducible development environment and build system for 
 ## Implementation Details
 
 ### Flake Outputs
-1. **devShells.${system}.default**: Development environment with all dependencies
-2. **packages.${system}.default**: Built flash-attention Python package
+1. **devShells.${system}.default**: Development environment with all dependencies for building and testing
+2. **packages.${system}.default**: Flash-attention Python package (source code only - CUDA/ROCm extensions built downstream)
 
 ### Key Features
 - ROCm support using rocmPackages from nixpkgs
@@ -30,10 +30,9 @@ This flake provides a reproducible development environment and build system for 
 - psutil
 
 **Build Tools:**
-- ninja
-- cmake
 - git
 - gcc13
+- ninja/cmake (handled internally by PyTorch build system)
 
 **ROCm Libraries:**
 - rocmPackages.clr (ROCm runtime)
@@ -51,7 +50,8 @@ This flake provides a reproducible development environment and build system for 
 ### Development Shell
 ```bash
 nix develop
-# This provides the environment with PyTorch and all dependencies
+# This provides the environment with pip and all dependencies
+# PyTorch is installed automatically via pip from AMD nightlies
 # Submodules are initialized automatically in the package build
 ```
 
@@ -82,12 +82,17 @@ In your downstream flake.nix:
 ```
 
 ## Build Process
-1. Initialize git submodules (composable_kernel, cutlass)
-2. Set ROCm environment variables (ROCM_PATH, HIP_PATH)
-3. Configure GCC 13 for HIP compatibility
-4. Force BUILD_TARGET=rocm in setup.py
-5. Build with ninja/cmake
-6. Install as Python package
+
+### Nix Package Build (Source Only)
+1. Fetch source from GitHub with submodules (composable_kernel, cutlass)
+2. Skip CUDA/ROCm extension compilation (FLASH_ATTENTION_SKIP_CUDA_BUILD=TRUE)
+3. Package Python source code only
+4. Downstream pip installation handles CUDA/ROCm compilation
+
+### Downstream Build (With Extensions)
+1. Install torch via pip from AMD nightlies
+2. Install flash-attention via pip with CUDA/ROCm extensions
+3. Extensions are compiled against available torch installation
 
 ## Environment Variables
 - `ROCM_PATH`: Path to ROCm installation

@@ -30,14 +30,13 @@
 
         # Python dependencies
         propagatedBuildInputs = [
+          torch
           einops
           packaging
           psutil
         ];
 
         nativeBuildInputs = with pkgs; [
-          ninja
-          cmake
           git
           # GCC for HIP compilation
           gcc13
@@ -64,6 +63,8 @@
           CXX = "${pkgs.gcc13}/bin/g++";
           BUILD_TARGET = "rocm";
           FLASH_ATTENTION_TRITON_AMD_ENABLE = "false";
+          # Skip CUDA/ROCm builds in nix environment - let downstream pip handle it
+          FLASH_ATTENTION_SKIP_CUDA_BUILD = "TRUE";
         };
 
         # Add ROCm libraries to library path during build
@@ -105,6 +106,7 @@
           # Python with dependencies (PyTorch installed via pip)
           (python3.withPackages (
             ps: with ps; [
+              pip
               einops
               packaging
               psutil
@@ -135,7 +137,7 @@
           # Install PyTorch with ROCm support via official AMD packages
           if ! python -c "import torch" 2>/dev/null; then
             echo "Installing PyTorch with ROCm support..."
-            python -m pip install --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ --pre torch torchaudio torchvision
+            python -m pip install --break-system-packages --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ --pre torch torchaudio torchvision
           fi
 
           export ROCM_PATH=${pkgs.rocmPackages.clr}
@@ -169,7 +171,7 @@
 
           echo "Flash Attention development environment loaded (ROCm)!"
           echo "To initialize submodules, run: git submodule update --init --recursive"
-          echo "To build for ROCm, run: FLASH_ATTENTION_TRITON_AMD_ENABLE=false pip install -e ."
+          echo "To build for ROCm, run: FLASH_ATTENTION_TRITON_AMD_ENABLE=false pip install --break-system-packages -e ."
           echo "Or set BUILD_TARGET=rocm before building"
         '';
       };
