@@ -14,8 +14,88 @@
         config.allowUnfree = true;
         config.rocmSupport = true;
       };
+
+      # Build flash-attention as a Python package
+      flash-attention = with pkgs.python3Packages; buildPythonPackage {
+        pname = "flash-attn";
+        version = "2.7.0"; # TODO: Extract from __init__.py properly
+        src = ./.;
+        format = "setuptools";
+
+        # Initialize git submodules
+        preConfigure = ''
+          git submodule update --init --recursive
+        '';
+
+        # Python dependencies
+        propagatedBuildInputs = [
+          einops
+          packaging
+          psutil
+        ];
+
+        buildInputs = with pkgs; [
+          ninja
+          cmake
+          git
+          # ROCm packages
+          rocmPackages.clr
+          rocmPackages.rocblas
+          rocmPackages.hipblas
+          rocmPackages.hipsparse
+          rocmPackages.rocsolver
+          rocmPackages.hipfft
+          rocmPackages.hiprand
+          rocmPackages.rccl
+          rocmPackages.rocthrust
+          # GCC for HIP compilation
+          gcc13
+        ];
+
+        # Set build environment
+        env = {
+          ROCM_PATH = "${pkgs.rocmPackages.clr}";
+          HIP_PATH = "${pkgs.rocmPackages.clr}";
+          CC = "${pkgs.gcc13}/bin/gcc";
+          CXX = "${pkgs.gcc13}/bin/g++";
+          BUILD_TARGET = "rocm";
+          FLASH_ATTENTION_TRITON_AMD_ENABLE = "false";
+        };
+
+        # Add ROCm libraries to library path during build
+        preBuild = ''
+          export LD_LIBRARY_PATH="${pkgs.lib.makeLibraryPath [
+            pkgs.rocmPackages.clr
+            pkgs.rocmPackages.rocblas
+            pkgs.rocmPackages.hipblas
+            pkgs.rocmPackages.hipsparse
+            pkgs.rocmPackages.rocsolver
+            pkgs.rocmPackages.hipfft
+            pkgs.rocmPackages.hiprand
+          ]}:$LD_LIBRARY_PATH"
+
+          export LIBRARY_PATH="${pkgs.lib.makeLibraryPath [
+            pkgs.rocmPackages.clr
+          ]}:$LIBRARY_PATH"
+        '';
+
+        # Override setup.py to force ROCm build
+        postPatch = ''
+          substituteInPlace setup.py \
+            --replace 'BUILD_TARGET = os.environ.get("BUILD_TARGET", "auto")' \
+                      'BUILD_TARGET = os.environ.get("BUILD_TARGET", "rocm")'
+        '';
+
+        meta = {
+          description = "Flash Attention: Fast and Memory-Efficient Exact Attention";
+          homepage = "https://github.com/Dao-AILab/flash-attention";
+          license = pkgs.lib.licenses.bsd3;
+        };
+      };
     in
     {
+      packages.${system}.default = flash-attention;
+
       devShells.${system}.default = pkgs.mkShell rec {
         buildInputs = with pkgs; [
           # Python with dependencies (PyTorch installed via pip)
