@@ -19,13 +19,14 @@
       flash-attention = with pkgs.python3Packages; buildPythonPackage {
         pname = "flash-attn";
         version = "2.7.0"; # TODO: Extract from __init__.py properly
-        src = ./.;
+        src = pkgs.fetchFromGitHub {
+          owner = "Dao-AILab";
+          repo = "flash-attention";
+          rev = "c9ab08f708be18a42fa877f667d4d829a48234ef";
+          hash = "sha256-Nk8Hk73lGBwWdARo3L3uMjlWof9NSIJLOrPfnDhR9MA=";
+          fetchSubmodules = true;
+        };
         format = "setuptools";
-
-        # Initialize git submodules
-        preConfigure = ''
-          git submodule update --init --recursive
-        '';
 
         # Python dependencies
         propagatedBuildInputs = [
