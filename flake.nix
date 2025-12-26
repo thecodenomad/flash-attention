@@ -34,10 +34,15 @@
           psutil
         ];
 
-        buildInputs = with pkgs; [
+        nativeBuildInputs = with pkgs; [
           ninja
           cmake
           git
+          # GCC for HIP compilation
+          gcc13
+        ];
+
+        buildInputs = with pkgs; [
           # ROCm packages
           rocmPackages.clr
           rocmPackages.rocblas
@@ -48,8 +53,6 @@
           rocmPackages.hiprand
           rocmPackages.rccl
           rocmPackages.rocthrust
-          # GCC for HIP compilation
-          gcc13
         ];
 
         # Set build environment
