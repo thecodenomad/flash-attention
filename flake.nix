@@ -1,0 +1,93 @@
+{
+  description = "Flash Attention: Fast and Memory-Efficient Exact Attention";
+
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+  };
+
+  outputs =
+    { self, nixpkgs }:
+    let
+      system = "x86_64-linux";
+      pkgs = import nixpkgs {
+        system = system;
+        config.allowUnfree = true;
+        config.rocmSupport = true;
+      };
+    in
+    {
+      devShells.${system}.default = pkgs.mkShell rec {
+        buildInputs = with pkgs; [
+          # Python with dependencies (PyTorch installed via pip)
+          (python3.withPackages (
+            ps: with ps; [
+              einops
+              packaging
+              psutil
+            ]
+          ))
+
+          # Build tools
+          ninja
+          cmake
+          git
+
+          # ROCm runtime and libraries using rocmPackages
+          rocmPackages.clr
+          rocmPackages.rocblas
+          rocmPackages.hipblas
+          rocmPackages.hipsparse
+          rocmPackages.rocsolver
+          rocmPackages.hipfft
+          rocmPackages.hiprand
+          rocmPackages.rccl
+          rocmPackages.rocthrust
+
+          # GCC for HIP compilation compatibility
+          gcc13
+        ];
+
+        shellHook = ''
+          # Install PyTorch with ROCm support via official AMD packages
+          if ! python -c "import torch" 2>/dev/null; then
+            echo "Installing PyTorch with ROCm support..."
+            python -m pip install --index-url https://rocm.nightlies.amd.com/v2/gfx1151/ --pre torch torchaudio torchvision
+          fi
+
+          export ROCM_PATH=${pkgs.rocmPackages.clr}
+          export HIP_PATH=${pkgs.rocmPackages.clr}
+
+          # Set CC to GCC 13 for HIP compatibility
+          export CC=${pkgs.gcc13}/bin/gcc
+          export CXX=${pkgs.gcc13}/bin/g++
+          export PATH=${pkgs.gcc13}/bin:$PATH
+
+          # Add necessary paths for dynamic linking
+          export LD_LIBRARY_PATH=${
+            pkgs.lib.makeLibraryPath ([
+              "/run/opengl-driver" # Needed to find libGL.so
+              pkgs.rocmPackages.clr
+              pkgs.rocmPackages.rocblas
+              pkgs.rocmPackages.hipblas
+              pkgs.rocmPackages.hipsparse
+              pkgs.rocmPackages.rocsolver
+              pkgs.rocmPackages.hipfft
+              pkgs.rocmPackages.hiprand
+            ] ++ buildInputs)
+          }:$LD_LIBRARY_PATH
+
+          # Set LIBRARY_PATH to help the linker find the ROCm libraries
+          export LIBRARY_PATH=${
+            pkgs.lib.makeLibraryPath [
+              pkgs.rocmPackages.clr
+            ]
+          }:$LIBRARY_PATH
+
+          echo "Flash Attention development environment loaded (ROCm)!"
+          echo "To initialize submodules, run: git submodule update --init --recursive"
+          echo "To build for ROCm, run: FLASH_ATTENTION_TRITON_AMD_ENABLE=false pip install -e ."
+          echo "Or set BUILD_TARGET=rocm before building"
+        '';
+      };
+    };
+}
